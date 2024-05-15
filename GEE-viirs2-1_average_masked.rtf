@@ -1,0 +1,150 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2513
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
+{\colortbl;\red255\green255\blue255;}
+{\*\expandedcolortbl;;}
+\paperw11900\paperh16840\margl1440\margr1440\vieww10800\viewh8400\viewkind0
+\pard\tx566\tx1133\tx1700\tx2267\tx2834\tx3401\tx3968\tx4535\tx5102\tx5669\tx6236\tx6803\pardirnatural\partightenfactor0
+
+\f0\fs24 \cf0 // ************\
+// * Setup up *\
+// ************ \
+\
+var ntlCollection = ee.ImageCollection('NOAA/VIIRS/DNB/ANNUAL_V21');\
+var band = 'average_masked' //bands: average, average_masked, cf_cvg, cvg, maximum, median, median_masked, minimum\
+var ids = ee.FeatureCollection("projects/ee-manulobu/assets/mapIndonesia514");\
+//var ids = ee.FeatureCollection("projects/ee-manulobu/assets/ids_simp");\
+var geometry = ids\
+\
+// ********************\
+// * Defining filters *\
+// ********************\
+\
+// Date filters\
+\
+var startYear = 2013;\
+var endYear = 2021;\
+\
+var startDate = ee.Date.fromYMD(startYear, 1, 1);\
+var endDate = ee.Date.fromYMD(endYear + 1, 1, 1);\
+\
+// NTL collection\
+\
+var filteredNtl = ntlCollection\
+  .filter(ee.Filter.date(startDate, endDate))\
+  .filter(ee.Filter.bounds(geometry))\
+  .select(band);\
+print('Filtered NTL collection', filteredNtl);\
+\
+// *********************************\
+// * Reducing to zonal stats (sum) * \
+// *********************************\
+\
+var calculateSol = function(image) \{\
+  var year = image.date().get('year');\
+  var yearStart = ee.Date.fromYMD(year, 1, 1);\
+  var yearEnd = yearStart.advance(1, 'year');\
+    \
+  var statsCol = image.reduceRegions(\{\
+    collection: ids, \
+    reducer: ee.Reducer.sum().setOutputs(['ntl']),\
+    scale: 463.83,\
+    tileScale: 16\})\
+\
+  var results = statsCol.map(function(feature) \{\
+    var ntl = ee.List([feature.getNumber('ntl'), 0])\
+    .reduce(ee.Reducer.firstNonNull());\
+\
+    var district = feature.get('district');\
+    var districtID = feature.get('districtID');\
+    var newFeature = ee.Feature(null, \{\
+      'ntl': ntl, \
+      'year': year,\
+      'district': district,\
+      'districtID': districtID\
+    \});\
+    return newFeature;\
+  \});\
+  \
+  return results;\
+\};\
+\
+// **********************\
+// * Flatten collection *\
+// **********************\
+\
+var solByClassByRegionTimeSeries = filteredNtl\
+  .map(calculateSol)\
+  .flatten();\
+print('Lights by Region Time Series - Sum', solByClassByRegionTimeSeries);\
+\
+// ******************\
+// * Export to .csv *\
+// ******************\
+\
+// Select the properties to export\
+var outputFields = ['district', 'districtID', 'year','ntl']; \
+\
+Export.table.toDrive(\{\
+  collection: solByClassByRegionTimeSeries,\
+  description: 'ntl_ids_district_2013-2021_average_masked_sum',\
+  folder: 'earthengine',\
+  fileNamePrefix: 'ntl_ids_district_2013-2021_average_masked_sum',\
+  fileFormat: 'CSV',\
+  selectors: outputFields\});\
+  \
+// **********************************\
+// * Reducing to zonal stats (mean) * \
+// **********************************\
+\
+var calculateSol = function(image) \{\
+  var year = image.date().get('year');\
+  var yearStart = ee.Date.fromYMD(year, 1, 1);\
+  var yearEnd = yearStart.advance(1, 'year');\
+    \
+  var statsCol = image.reduceRegions(\{\
+    collection: ids, \
+    reducer: ee.Reducer.mean().setOutputs(['ntl']),\
+    scale: 463.83,\
+    tileScale: 16\})\
+\
+  var results = statsCol.map(function(feature) \{\
+    var ntl = ee.List([feature.getNumber('ntl'), 0])\
+    .reduce(ee.Reducer.firstNonNull());\
+\
+    var district = feature.get('district');\
+    var districtID = feature.get('districtID');\
+    var newFeature = ee.Feature(null, \{\
+      'ntl': ntl, \
+      'year': year,\
+      'district': district,\
+      'districtID': districtID\
+    \});\
+    return newFeature;\
+  \});\
+  \
+  return results;\
+\};\
+\
+// **********************\
+// * Flatten collection *\
+// **********************\
+\
+var solByClassByRegionTimeSeries = filteredNtl\
+  .map(calculateSol)\
+  .flatten();\
+print('Lights by Region Time Series - Sum', solByClassByRegionTimeSeries);\
+\
+// ******************\
+// * Export to .csv *\
+// ******************\
+\
+// Select the properties to export\
+var outputFields = ['district', 'districtID', 'year','ntl']; \
+\
+Export.table.toDrive(\{\
+  collection: solByClassByRegionTimeSeries,\
+  description: 'ntl_ids_district_2013-2021_average_masked_mean',\
+  folder: 'earthengine',\
+  fileNamePrefix: 'ntl_ids_district_2013-2021_average_masked_mean',\
+  fileFormat: 'CSV',\
+  selectors: outputFields\});}
